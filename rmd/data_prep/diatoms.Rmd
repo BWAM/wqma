@@ -1,0 +1,82 @@
+---
+title: "Diatom Data Compilation"
+author: "Zachary M. Smith"
+date: "9/23/2019"
+output: html_document
+---
+
+# Purpose
+
+Brian Duffy asked me to automate the process for appending diatom data to pass the data on to ITS for the data modernization project.
+
+__These files still contain old site names that need to be updated.__
+
+# Script
+
+Import the necessary R-packages
+```{r}
+library(tidyverse)
+```
+
+Establish path way to data files.
+```{r}
+data.path <- file.path("L:",
+                       "DOW",
+                       "SMAS",
+                       "projects",
+                       "its_data_modernization",
+                       "RawData",
+                       "DiatomData")
+```
+
+Identify all of the XLSX files in the specified data path. Split the identified XLSX files into two vectors representing metric and deliverable files.
+```{r}
+all_files.vec <- list.files(data.path,
+                            pattern = "xlsx",
+                            recursive = TRUE)
+
+metric_files.vec <- all_files.vec[grepl("Metric", all_files.vec)]
+deliverables_files.vec <- all_files.vec[grepl("Deliverables", all_files.vec)]
+```
+
+Create a standard function for importing and combining multiple files of the same type.
+```{r}
+# file.i <- metric_files.vec[1]
+append_files <- function(files.vec) {
+  files.vec %>% 
+  lapply(function(file.i) {
+    sub.df <- readxl::read_xlsx(
+      file.path(data.path,
+                file.i),
+      sheet = 1,
+      col_types = "text"
+    )
+    
+    # sub.df$origin <- file.i
+    
+    sub.df
+  }) %>% 
+  dplyr::bind_rows()
+}
+```
+
+Import, append, and export the metric files to the "compiled" folder.
+```{r}
+metrics.df <- append_files(files.vec = metric_files.vec)
+
+data.table::fwrite(metrics.df,
+          file.path(data.path,
+                    "compiled",
+                    "diatom_community-metrics.csv"))
+```
+
+Import, append, and export the deverable files to the "compiled" folder.
+```{r}
+deliverables.df <- append_files(files.vec = deliverables_files.vec)
+
+data.table::fwrite(metrics.df,
+          file.path(data.path,
+                    "compiled",
+                    "diatom_deliverables-counts.csv"))
+```
+

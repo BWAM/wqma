@@ -1,0 +1,109 @@
+---
+title: "Fish Site ID Crosswalk"
+author: "Zachary M. Smith"
+date: "10/25/2019"
+output: html_document
+---
+
+# Purpose
+
+Crosswalk old site IDs with new site IDs.
+
+# Script
+
+Import the necessary R-packages
+```{r}
+library(tidyverse)
+```
+
+Establish path way to data files.
+```{r}
+data.path <- file.path("L:",
+                       "DOW",
+                       "SMAS",
+                       "projects",
+                       "its_data_modernization",
+                       "RawData")
+```
+
+Import old site files table to be used as a cross walk.
+```{r}
+sites.df <- readxl::read_xlsx(
+      file.path(data.path,
+                "OldSiteFile.xlsx"),
+      sheet = 1
+    ) %>% 
+  mutate(RIVMILE = as.numeric(RIVMILLE)) %>% 
+  select(SITE_ID,
+         RIVMILE,
+         STATION,
+         LOCATION,
+         LATITUDE,
+         LONGITUDE)
+
+```
+
+Import the most recent site IDs (basin, location, and rivermile).
+```{r}
+blr.df <- read_csv(
+  file.path(data.path,
+            "sites_field.csv")
+) %>% 
+  select(SITE_ID,
+         SITE_LOC_ID)
+```
+
+Import the fish data.
+```{r}
+fish.df <- readxl::read_xlsx(
+      file.path(data.path,
+                "Fish",
+                "FishData.xlsx"),
+      sheet = 1
+    )
+```
+
+The "LOCATION" colmun in `fish.df` contains some rows that actually represent "SITE_ID". `fish.df` is split into two data frames representing rows where "LOCATION" actually representes "LOCATION" strings and rows where "LOCATION" represents "SITE_ID". The two dataframes are joined with the `sites.df` dataframe based on common columns.
+```{r}
+fish_loc_char.df <- fish.df %>% 
+  filter(is.na(readr::parse_integer(LOCATION))) %>% 
+  left_join(sites.df, by = c("LOCATION",
+                             "RIVMILE"))
+
+fish_loc_int.df <- fish.df %>% 
+  filter(!is.na(readr::parse_integer(LOCATION))) %>% 
+  mutate(SITE_ID = as.numeric(LOCATION)) %>% 
+  select(-LOCATION, -RIVMILE) %>% 
+  left_join(sites.df, by = c( "SITE_ID")) 
+```
+
+The two data frames are appended together.
+```{r}
+fish_sites.df <- bind_rows(fish_loc_char.df, fish_loc_int.df)
+```
+
+`fish_sites.df`  is merged with the new site ID table. There was one instance where the "SITE_ID" in te fish tables
+```{r}
+fish_final.df <- left_join(fish_sites.df, blr.df, by = "SITE_ID")%>% 
+  select(SITE_LOC_ID, everything()) %>% 
+  mutate(SITE_LOC_ID = if_else(SITE_LOC_ID == "BIGC" & RIVMILE == 6.2,
+                               "10-BIGC-6.3",
+                               SITE_LOC_ID)) %>% 
+  select(SITE_LOC_ID, !!!names(fish.df)) %>% 
+  select(-BASIN, LOCATION, RIVMILE)
+```
+
+```{r}
+readr::write_csv(fish_final.df,
+                 file.path("L:",
+                       "DOW",
+                       "SMAS",
+                       "projects",
+                       "its_data_modernization",
+                       "cleaned",
+                       "fish",
+                       glue::glue('{format(Sys.Date(), "%Y%m%d")}_fish.csv')),
+                 na = "")
+  
+```
+

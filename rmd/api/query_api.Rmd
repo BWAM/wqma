@@ -1,0 +1,150 @@
+---
+title: "Data Modernization: Query REST API"
+author: "Zachary M. Smith"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: readable
+---
+
+# Introduction
+
+This document was created to instruct how to use the statistical programming language, R, to query the Water Quality Modernization and Assessments (WQMA) representational state transfer (REST) application programming interface (API). WQMA represents an Oracle database comprised of data stored as JavaScript Object Notation (JSON) format.
+
+# Prepare the R Environment
+
+## Install the Necessary Packages
+
+This process relies on the R packages:
+- __httr:__ for querying data directly from the WQMA REST API.
+- __jsonlite:__ for translating JSON data into a data frame;
+- __dplyr:__ for data manipulation.
+
+Use `install.packages()` to install all of the necessary R packages.
+```{r, eval=FALSE}
+install.packages("httr", "jsonlite", "dplyr")
+```
+
+## Load the Packages
+
+Once the necessary R packages have been installed, the packages need to be loaded into the R environment with `library()` each time the script is executed.
+```{r, message=FALSE}
+library(httr)
+library(jsonlite)
+library(dplyr)
+```
+
+# Query REST API
+
+## Function
+
+The function, `query_data()`, is defined here to simplify the steps required to query data from the REST API. 
+
+- __Process__
+    + The data is queried from the WQMA REST API using the __httr__ function `GET()`;
+    + Retrieve the content of the data queried with `GET()` as a character vector using the __httr__ function `content()`;
+    + The contents of the character vector are converted from a JSON format to a workable data frame format the __jsonlite__ using the function `fromJSON()`. This data frame is returned as the final product of the `data_query()` function.
+
+- __Arguments__
+    + __.base_url:__ a character string (vector length 1) representing the Uniform Resource Locator (URL) for the WQMA REST API;
+    + __.query:__ a list of character strings representing JSON queries (default = NULL, returns all of the data available in the `.base_url`);
+    + __.encoding:__ a character string (vector length 1) representing the expected encoding of the data queried (default = "UTF-8").
+    
+```{r}
+query_data <- function(.base_url, .query = NULL, .encoding = "UTF-8") {
+  
+  # Query data from REST API --------------------------------------------------
+  field_lab.get <- httr::GET(url = .base_url,
+                             query = .query) 
+  
+  # Retrieve the content of the queried data as a text/character string -------
+  field_lab.text <- httr::content(x = field_lab.get,
+                                  as = "text",
+                                  encoding = .encoding) 
+  
+  # Convert to a data frame (R table) from a JSON format ----------------------
+  field_lab.df <- jsonlite::fromJSON(txt = field_lab.text,
+                                       flatten = TRUE)
+  
+  # Return data frame ---------------------------------------------------------
+  return(field_lab.df)
+}
+
+```
+
+```{r standard-dt, echo=FALSE}
+standard_dt <- function(x) {
+    DT::datatable(x, 
+    options = list(
+      columnDefs = list(list(
+        className = 'dt-center'
+      )),
+      scrollY = 300,
+      scroller = TRUE,
+      scrollX = TRUE
+    )
+  )
+}
+```
+
+## Example Queries
+
+The following URL will define the object supplied to the `.base_url` argument in the `query_data()` function in all of the subsequent examples. _This is an example URL and is expected to change as development of WQMA continuous._
+```{r}
+base.vec <- 'https://wqmaservice-dev.dec.ny.gov/wqma-service/api/v2/fieldData/2019'
+```
+
+### Query All Data from a URL
+
+Only specifying `.base_url` in `query_data()` will return a data frame containing all of the data available for the supplied URL.
+```{r}
+all.df <- query_data(.base_url = base.vec)
+```
+
+```{r, echo=FALSE}
+standard_dt(all.df)
+```
+
+### Query Subset Using JSON Syntax
+
+The query to the REST API can be refined to only return a subset of the available data. The code chunk below displays a query to extract only rows where `PAST_WEATHER` and `CURRENT_WEATHER` represent the character string "Clouds". This object must be stored as a list.
+```{r}
+query.list <- list(field = paste0('{',
+                                  paste(
+                                    '"PAST_WEATHER": "Clouds"',
+                                    '"CURRENT_WEATHER": "Clouds"',
+                                    sep = ","),
+                                  '}'))
+```
+
+The `query_data()` function now includes the specific query specified above (`.query = query.list`). It can be seen that the data frame contains only six rows, where `PAST_WEATHER` and `CURRENT_WEATHER` represent the character string "Clouds". In comparison, there are sixteen rows of data in the data frame produced in the [Query All Data from a URL] section.
+```{r}
+weather.df <- query_data(.base_url = base.vec,
+                         .query = query.list)
+```
+
+```{r, echo=FALSE}
+standard_dt(weather.df)
+```
+
+### Filter with dplyr
+
+If the JSON syntax in the [Query Subset Using JSON Syntax] section is too confusing, download all of the data, as was done in the [Query All Data from a URL] section, and manipulate the data using R.
+
+Query all of the data available for the supplied URL.
+```{r}
+all.df <- query_data(.base_url = base.vec)
+```
+
+Subset the data using the __dplyr__ function `filter()`. The subset is the same as the subset queried using the JSON syntax in the [Query Subset Using JSON Syntax] section.
+```{r}
+filter.df <- all.df %>% 
+  dplyr::filter(CURRENT_WEATHER %in% "Clouds",
+                PAST_WEATHER %in% "Clouds")
+```
+
+```{r, echo=FALSE}
+standard_dt(filter.df)
+```
