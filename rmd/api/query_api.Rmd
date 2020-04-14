@@ -11,13 +11,14 @@ output:
 
 # Introduction
 
-This document was created to instruct how to use the statistical programming language, R, to query the Water Quality Modernization and Assessments (WQMA) representational state transfer (REST) application programming interface (API). WQMA represents an Oracle database comprised of data stored as JavaScript Object Notation (JSON) format.
+This document was created to instruct how to use the statistical programming language, R, to query the Water Quality Modernization and Assessments (WQMA) datastores. WQMA datastores consist of records formatted in JavaScript Object Notation (JSON) and stored in an Oracle database. The datastores are accessible via a representational state transfer (REST) based webservice.
 
 # Prepare the R Environment
 
 ## Install the Necessary Packages
 
 This process relies on the R packages:
+
 - __httr:__ for querying data directly from the WQMA REST API.
 - __jsonlite:__ for translating JSON data into a data frame;
 - __dplyr:__ for data manipulation.
